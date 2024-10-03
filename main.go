@@ -6,5 +6,7 @@ import (
 
 
 func main() {
-	log.Println("Hello, World!")
+	log.Println("Starting API Server")
+	var server *APIServer =  NewAPIServer(":3000", "v1", "/api")
+	server.Start()
 }
