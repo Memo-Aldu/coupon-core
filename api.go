@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -13,9 +14,10 @@ import (
 type apiFunc func(http.ResponseWriter, *http.Request) error
 
 type APIServer struct {
-	listenAddress string
-	apiVersion string
-	apiBaseUrl string
+	db 				Database
+	listenAddress 	string
+	apiVersion 		string
+	apiBaseUrl 		string
 }
 
 type Response struct {
@@ -29,28 +31,10 @@ type APIError struct {
 }
 
 
-func WriteJsonResponse(writer http.ResponseWriter, status int, response interface{} ) error {
-	writer.Header().Set("Content-Type", "application/json")
-	writer.WriteHeader(status)
-
-	return json.NewEncoder(writer).Encode(response)
-}
-
-
-func createHttpHandler(f apiFunc) http.HandlerFunc {
-	return func(writer http.ResponseWriter, request *http.Request) {
-		err := f(writer, request)
-		if err != nil {
-			log.Fatal(err)
-			WriteJsonResponse(writer, http.StatusInternalServerError, APIError{Error: err.Error()})
-		}
-	}
-}
-
-
-func NewAPIServer(listenAddress string, apiVersion string, apiBaseUrl string ) *APIServer {
+func NewAPIServer(db Database, listenAddress, apiVersion, apiBaseUrl string ) *APIServer {
 	// Returning a Pointer to the APIServer
 	return &APIServer{
+		db: db,
 		listenAddress: listenAddress,
 		apiVersion: apiVersion,
 		apiBaseUrl: apiBaseUrl,
@@ -100,12 +84,28 @@ func (server *APIServer) handleCoupon(writer http.ResponseWriter, request *http.
 func (server * APIServer) handleGetCoupon(writer http.ResponseWriter, request *http.Request) error {
 	log.Println("Get Coupon Handler")
 	pathVariables := mux.Vars(request)
-	log.Println("Path Variables", pathVariables)
-	coupon := NewCoupon("10PERCENT", "percentage", 10.0)
+	
+	if id, ok := pathVariables["id"]; ok {
+		id, err := strconv.Atoi(id)
+		if err != nil {
+			return err
+		}
+		coupon, err := server.db.GetCouponById(id)
+		if err != nil {
+			return err
+		}
+		return WriteJsonResponse(writer, http.StatusOK, Response{
+			Success: true,
+			Message: "Coupon Retrieved Successfully",
+			Data: coupon,
+		})
+
+	}
+
 	return WriteJsonResponse(writer, http.StatusOK, 
 		Response{
 			Success: true, 
-			Data: coupon,
+			Data: nil,
 			Message: "Coupon Retrieved Successfully",
 		},
 	)
@@ -114,11 +114,26 @@ func (server * APIServer) handleGetCoupon(writer http.ResponseWriter, request *h
 
 func (server *APIServer) handleCreateCoupon(writer http.ResponseWriter, request *http.Request) error {
 	log.Println("Create Coupon Handler")
-	return WriteJsonResponse(writer, http.StatusCreated,
-		Response{
+	// new return a pointer to the memory location of the object
+	createCouponRequest := new(CreateCouponRequest)
+	if err := json.NewDecoder(request.Body).Decode(createCouponRequest); err != nil {
+		return err
+	}
+
+	coupon := NewCoupon(createCouponRequest.Code, createCouponRequest.DiscountType, createCouponRequest.Value,
+		createCouponRequest.MinimumOrderValue, createCouponRequest.MaxRedemptions, createCouponRequest.ExpiryDate,
+		createCouponRequest.ApplicableProducts, createCouponRequest.IsActive, createCouponRequest.UserSpecific)
+
+	newCoupon, err := server.db.CreateCoupon(coupon)
+
+	if err != nil {
+		return err
+	}
+
+	return WriteJsonResponse(writer, http.StatusCreated, Response{
 			Success: true,
 			Message: "Coupon Created Successfully",
-			Data: NewCoupon("20PERCENT", "percentage", 20.0),
+			Data: newCoupon,
 		},
 	)
 }
@@ -132,9 +147,10 @@ func (server *APIServer) handleUpdateCoupon(writer http.ResponseWriter, request 
 	return WriteJsonResponse(writer, http.StatusOK, Response{
 		Success: true,
 		Message: "Coupon Updated Successfully",
-		Data: NewCoupon("30PERCENT", "percentage", 30.0),
+		Data: nil,
 	})
 }
+
 
 func (server *APIServer) handleDeleteCoupon(writer http.ResponseWriter, request *http.Request) error {
 	log.Println("Delete Coupon Handler")
@@ -144,4 +160,23 @@ func (server *APIServer) handleDeleteCoupon(writer http.ResponseWriter, request 
 		Message: "Coupon Deleted Successfully",
 		Data: nil,
 	})
+}
+
+
+func WriteJsonResponse(writer http.ResponseWriter, status int, response interface{} ) error {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.WriteHeader(status)
+
+	return json.NewEncoder(writer).Encode(response)
+}
+
+
+func createHttpHandler(f apiFunc) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		err := f(writer, request)
+		if err != nil {
+			log.Println("Error: ", err)
+			WriteJsonResponse(writer, http.StatusInternalServerError, APIError{Error: err.Error()})
+		}
+	}
 }
