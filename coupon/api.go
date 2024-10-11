@@ -1,4 +1,5 @@
-package main
+package coupon
+
 
 import (
 	"encoding/json"
@@ -10,15 +11,17 @@ import (
 	"github.com/gorilla/mux"
 )
 
+
 // Defining a type for the API functions
 type apiFunc func(http.ResponseWriter, *http.Request) error
 
 type APIServer struct {
-	db 				Database
+	service 		*CouponService
 	listenAddress 	string
 	apiVersion 		string
 	apiBaseUrl 		string
 }
+
 
 type Response struct {
 	Success bool     `json:"success"`
@@ -31,10 +34,10 @@ type APIError struct {
 }
 
 
-func NewAPIServer(db Database, listenAddress, apiVersion, apiBaseUrl string ) *APIServer {
+func NewAPIServer(service *CouponService, listenAddress, apiVersion, apiBaseUrl string ) *APIServer {
 	// Returning a Pointer to the APIServer
 	return &APIServer{
-		db: db,
+		service: service,
 		listenAddress: listenAddress,
 		apiVersion: apiVersion,
 		apiBaseUrl: apiBaseUrl,
@@ -90,7 +93,7 @@ func (server * APIServer) handleGetCoupon(writer http.ResponseWriter, request *h
 		if err != nil {
 			return err
 		}
-		coupon, err := server.db.GetCouponById(id)
+		coupon, err := server.service.GetCouponById(id)
 		if err != nil {
 			return err
 		}
@@ -123,8 +126,12 @@ func (server *APIServer) handleCreateCoupon(writer http.ResponseWriter, request 
 	coupon := NewCoupon(createCouponRequest.Code, createCouponRequest.DiscountType, createCouponRequest.Value,
 		createCouponRequest.MinimumOrderValue, createCouponRequest.MaxRedemptions, createCouponRequest.ExpiryDate,
 		createCouponRequest.ApplicableProducts, createCouponRequest.IsActive, createCouponRequest.UserSpecific)
+	
+	if err := ValidateCreateCouponRequest(coupon); err != nil {
+		return err
+	}
 
-	newCoupon, err := server.db.CreateCoupon(coupon)
+	newCoupon, err := server.service.CreateCoupon(coupon)
 
 	if err != nil {
 		return err

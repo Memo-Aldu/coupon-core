@@ -1,4 +1,5 @@
-package main
+package coupon
+
 
 import (
 	"database/sql"
@@ -10,7 +11,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type Database interface {
+type Repository interface {
 	connect() error
 	disconnect() error
 	GetCouponById(id int) (*Coupon, error)
@@ -20,13 +21,13 @@ type Database interface {
 }
 
 // PostgresDatabase struct that implements the Database interface
-type PostgresDatabase struct {
+type PostgresRepository struct {
 	db *sql.DB
 }
 
 
-func NewPostgresDatabase() (*PostgresDatabase, error) {
-	db := &PostgresDatabase{}
+func NewPostgresRepository() (*PostgresRepository, error) {
+	db := &PostgresRepository{}
 	if err := db.connect(); err != nil {
 		return nil, err
 	}
@@ -35,7 +36,7 @@ func NewPostgresDatabase() (*PostgresDatabase, error) {
 }
 
 
-func (db *PostgresDatabase) Init() error {
+func (db *PostgresRepository) Init() error {
 	err := db.createCouponTable()
 	if err != nil {
 		log.Fatal("Error creating coupon table", err)
@@ -58,7 +59,7 @@ func (db *PostgresDatabase) Init() error {
 }
 
 
-func (db *PostgresDatabase) connect() error {
+func (db *PostgresRepository) connect() error {
 	connectionString := "user=postgres dbname=postgres password=root sslmode=disable"
 	database, err := sql.Open("postgres", connectionString)
 	if err != nil {
@@ -76,7 +77,7 @@ func (db *PostgresDatabase) connect() error {
 }
 
 
-func (db *PostgresDatabase) disconnect() error {
+func (db *PostgresRepository) disconnect() error {
 	err := db.db.Close()
 	if err != nil {
 		return err
@@ -86,7 +87,7 @@ func (db *PostgresDatabase) disconnect() error {
 }
 
 
-func (db *PostgresDatabase) GetCouponById(id int) (*Coupon, error) {
+func (db *PostgresRepository) GetCouponById(id int) (*Coupon, error) {
     query := `SELECT id, code, discount_type, value, max_redemptions, redeemed_count, 
               expiry_date, minimum_order_value, applicable_products, is_active, 
               user_specific, created_at, updated_at FROM coupons WHERE id = $1`
@@ -117,7 +118,7 @@ func (db *PostgresDatabase) GetCouponById(id int) (*Coupon, error) {
 }
 
 
-func (db *PostgresDatabase) CreateCoupon(coupon *Coupon) (*Coupon, error) {
+func (db *PostgresRepository) CreateCoupon(coupon *Coupon) (*Coupon, error) {
 	applicableProductsStr := intSliceToPostgresArray(coupon.ApplicableProducts)
 	query := `INSERT INTO coupons (
 		code, discount_type, value, max_redemptions, expiry_date, minimum_order_value, 
@@ -134,21 +135,23 @@ func (db *PostgresDatabase) CreateCoupon(coupon *Coupon) (*Coupon, error) {
 	}
 	coupon.ID = id
 
+	log.Println("Coupon created successfully")
+
 	return coupon, nil
 }
 
 
-func (db *PostgresDatabase) UpdateCoupon(coupon *Coupon) (*Coupon, error) {
+func (db *PostgresRepository) UpdateCoupon(coupon *Coupon) (*Coupon, error) {
 	return nil, nil
 }
 
 
-func (db *PostgresDatabase) DeleteCoupon(id int) error {
+func (db *PostgresRepository) DeleteCoupon(id int) error {
 	return nil
 }
 
 
-func (db *PostgresDatabase) createCouponTable() error {
+func (db *PostgresRepository) createCouponTable() error {
 	query := `
 		CREATE TABLE IF NOT EXISTS coupons (
 			id SERIAL PRIMARY KEY,
@@ -173,7 +176,7 @@ func (db *PostgresDatabase) createCouponTable() error {
 }
 
 
-func (db *PostgresDatabase) createCouponUserTable() error {
+func (db *PostgresRepository) createCouponUserTable() error {
 	query := `
 		CREATE TABLE IF NOT EXISTS coupon_users (
 			id SERIAL PRIMARY KEY,
@@ -186,7 +189,7 @@ func (db *PostgresDatabase) createCouponUserTable() error {
 }
 
 
-func (db *PostgresDatabase) createCouponRedemptionTable() error {
+func (db *PostgresRepository) createCouponRedemptionTable() error {
 	query := `
 		CREATE TABLE IF NOT EXISTS coupon_redemptions (
 			id SERIAL PRIMARY KEY,

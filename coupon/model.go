@@ -1,6 +1,7 @@
-package main
+package coupon
 
 import (
+	"log"
 	"time"
 )
 
@@ -64,8 +65,10 @@ func NewCoupon(code, discountType string, value, minimumOrderValue float64, maxR
 	
 	date, err := parseDate(expiryDate)
 	if err != nil {
+		log.Println("Error parsing date", err)
 		return nil
 	}
+
 	return &Coupon{
 		Code: code,
 		DiscountType: discountType,
@@ -82,5 +85,5 @@ func NewCoupon(code, discountType string, value, minimumOrderValue float64, maxR
 
 
 func parseDate(date string) (time.Time, error) {
-	return time.Parse("Mon Jan 2 15:04:05 MST 2006", date)
-}
+	return time.Parse("2006-01-02 15:04:05 MST", date)
+} 
