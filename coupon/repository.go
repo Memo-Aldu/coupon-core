@@ -5,8 +5,7 @@ import (
 	"database/sql"
 	"log"
 	"fmt"
-	"strings"
-	"strconv"
+	"encoding/json"
 	// importing the pq only for the side effects
 	_ "github.com/lib/pq"
 )
@@ -95,10 +94,10 @@ func (db *PostgresRepository) GetCouponById(id int) (*Coupon, error) {
 	row := db.db.QueryRow(query, id)
 
     coupon := new(Coupon)
-    var applicableProductsStr string
+	var applicableProductsJSON []byte
     err := row.Scan(&coupon.ID, &coupon.Code, &coupon.DiscountType, &coupon.Value, 
 		&coupon.MaxRedemptions, &coupon.RedeemedCount, &coupon.ExpiryDate, 
-		&coupon.MinimumOrderValue, &applicableProductsStr, &coupon.IsActive, 
+		&coupon.MinimumOrderValue, &applicableProductsJSON, &coupon.IsActive, 
 		&coupon.UserSpecific, &coupon.CreatedAt, &coupon.UpdatedAt)
 
 	if err != nil {
@@ -108,36 +107,40 @@ func (db *PostgresRepository) GetCouponById(id int) (*Coupon, error) {
 		return nil, err
 	}
 
-	productList, err := postgresArrayToIntSlice(applicableProductsStr )
-	if err != nil {
-		return nil, err
-	}
-	coupon.ApplicableProducts = productList
+	if err := json.Unmarshal(applicableProductsJSON, &coupon.ApplicableProducts); err != nil {
+        return nil, fmt.Errorf("failed to unmarshal applicable_products: %w", err)
+    }
 
 	return coupon, nil
 }
 
 
 func (db *PostgresRepository) CreateCoupon(coupon *Coupon) (*Coupon, error) {
-	applicableProductsStr := intSliceToPostgresArray(coupon.ApplicableProducts)
-	query := `INSERT INTO coupons (
-		code, discount_type, value, max_redemptions, expiry_date, minimum_order_value, 
-		applicable_products, is_active, user_specific)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+    query := `INSERT INTO coupons (
+        code, discount_type, value, max_redemptions, expiry_date, minimum_order_value, 
+        applicable_products, is_active, user_specific)
+        VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9) RETURNING id`
 
-	var id int
-	err := db.db.QueryRow(query, coupon.Code, coupon.DiscountType, coupon.Value, 
-		coupon.MaxRedemptions, coupon.ExpiryDate, coupon.MinimumOrderValue, 
-		applicableProductsStr, coupon.IsActive, coupon.UserSpecific).Scan(&id)
+    // Marshal applicable_products to JSON
+    applicableProductsJSON, err := json.Marshal(coupon.ApplicableProducts)
+    if err != nil {
+        return nil, fmt.Errorf("failed to marshal applicable_products: %w", err)
+    }
 
-	if err != nil {
-		return nil, err
-	}
-	coupon.ID = id
+    log.Printf("applicableProductsJSON: %s", string(applicableProductsJSON))
 
-	log.Println("Coupon created successfully")
+    var id int
+    err = db.db.QueryRow(query, coupon.Code, coupon.DiscountType, coupon.Value,
+        coupon.MaxRedemptions, coupon.ExpiryDate, coupon.MinimumOrderValue,
+        applicableProductsJSON, coupon.IsActive, coupon.UserSpecific).Scan(&id)
 
-	return coupon, nil
+    if err != nil {
+        return nil, fmt.Errorf("failed to create coupon: %w", err)
+    }
+    coupon.ID = id
+
+    log.Println("Coupon created successfully")
+    return coupon, nil
 }
 
 
@@ -162,7 +165,7 @@ func (db *PostgresRepository) createCouponTable() error {
 			redeemed_count INT DEFAULT 0,
 			expiry_date TIMESTAMP NOT NULL,
 			minimum_order_value DECIMAL(10, 2),
-			applicable_products INT[] DEFAULT '{}',
+			applicable_products JSONB DEFAULT '[]',
 			is_active BOOLEAN DEFAULT TRUE,
 			user_specific BOOLEAN DEFAULT FALSE,
 			created_at TIMESTAMP DEFAULT NOW(),
@@ -203,31 +206,6 @@ func (db *PostgresRepository) createCouponRedemptionTable() error {
 
 	return err
 }
-
-
-func intSliceToPostgresArray(intSlice []int) string {
-    strSlice := make([]string, len(intSlice))
-    for i, val := range intSlice {
-        strSlice[i] = fmt.Sprintf("%d", val)
-    }
-    return "{" + strings.Join(strSlice, ",") + "}"
-}
-
-func postgresArrayToIntSlice(pgArray string) ([]int, error) {
-    pgArray = strings.Trim(pgArray, "{}")
-    strSlice := strings.Split(pgArray, ",")
-    
-    intSlice := make([]int, len(strSlice))
-    for i, s := range strSlice {
-        num, err := strconv.Atoi(s)
-        if err != nil {
-            return nil, err
-        }
-        intSlice[i] = num
-    }
-    return intSlice, nil
-}
-
 
 
 

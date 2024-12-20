@@ -35,7 +35,6 @@ type APIError struct {
 
 
 func NewAPIServer(service *CouponService, listenAddress, apiVersion, apiBaseUrl string ) *APIServer {
-	// Returning a Pointer to the APIServer
 	return &APIServer{
 		service: service,
 		listenAddress: listenAddress,
@@ -91,11 +90,11 @@ func (server * APIServer) handleGetCoupon(writer http.ResponseWriter, request *h
 	if id, ok := pathVariables["id"]; ok {
 		id, err := strconv.Atoi(id)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid id: %w", err)
 		}
 		coupon, err := server.service.GetCouponById(id)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get coupon: %w", err)
 		}
 		return WriteJsonResponse(writer, http.StatusOK, Response{
 			Success: true,
@@ -105,6 +104,8 @@ func (server * APIServer) handleGetCoupon(writer http.ResponseWriter, request *h
 
 	}
 
+
+	// TODO: Implement Get All Coupons
 	return WriteJsonResponse(writer, http.StatusOK, 
 		Response{
 			Success: true, 
@@ -120,21 +121,30 @@ func (server *APIServer) handleCreateCoupon(writer http.ResponseWriter, request 
 	// new return a pointer to the memory location of the object
 	createCouponRequest := new(CreateCouponRequest)
 	if err := json.NewDecoder(request.Body).Decode(createCouponRequest); err != nil {
-		return err
+		return fmt.Errorf("invalid request body: %w", err)
+	}
+	
+		// Validate CreateCouponRequest
+	if err := createCouponRequest.Validate(); err != nil {
+		return fmt.Errorf("validation failed: %w", err)
+	}
+
+	var applicableProducts []string
+	if err := json.Unmarshal(createCouponRequest.ApplicableProducts, &applicableProducts); err != nil {
+		return fmt.Errorf("invalid applicable_products JSON: %w", err)
 	}
 
 	coupon := NewCoupon(createCouponRequest.Code, createCouponRequest.DiscountType, createCouponRequest.Value,
 		createCouponRequest.MinimumOrderValue, createCouponRequest.MaxRedemptions, createCouponRequest.ExpiryDate,
-		createCouponRequest.ApplicableProducts, createCouponRequest.IsActive, createCouponRequest.UserSpecific)
+		applicableProducts, createCouponRequest.IsActive, createCouponRequest.UserSpecific)
 	
 	if err := ValidateCreateCouponRequest(coupon); err != nil {
 		return err
 	}
 
 	newCoupon, err := server.service.CreateCoupon(coupon)
-
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create coupon: %w", err)
 	}
 
 	return WriteJsonResponse(writer, http.StatusCreated, Response{
@@ -183,7 +193,12 @@ func createHttpHandler(f apiFunc) http.HandlerFunc {
 		err := f(writer, request)
 		if err != nil {
 			log.Println("Error: ", err)
-			WriteJsonResponse(writer, http.StatusInternalServerError, APIError{Error: err.Error()})
+			WriteJsonResponse(writer, http.StatusInternalServerError, 
+				Response{
+					Success: false,
+					Message: "Failed to process request",
+					Data: APIError{Error: err.Error()},
+				})
 		}
 	}
 }
