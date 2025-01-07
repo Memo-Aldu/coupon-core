@@ -54,7 +54,7 @@ func (server *APIServer) Start() {
 	router.HandleFunc(fmt.Sprintf("%s/%s/coupon", server.apiBaseUrl, server.apiVersion), createHttpHandler(server.handleCoupon)).Methods(http.MethodPost)
 
 	// handle put request for /api/v1/coupon/{id}
-	router.HandleFunc(fmt.Sprintf("%s/%s/coupon/{id}", server.apiBaseUrl, server.apiVersion), createHttpHandler(server.handleCoupon)).Methods(http.MethodPut)
+	router.HandleFunc(fmt.Sprintf("%s/%s/coupon/{id}", server.apiBaseUrl, server.apiVersion), createHttpHandler(server.handleCoupon)).Methods(http.MethodPatch)
 
 	// handle delete request for /api/v1/coupon/{id}
 	router.HandleFunc(fmt.Sprintf("%s/%s/coupon/{id}", server.apiBaseUrl, server.apiVersion), createHttpHandler(server.handleCoupon)).Methods(http.MethodDelete)
@@ -73,7 +73,7 @@ func (server *APIServer) handleCoupon(writer http.ResponseWriter, request *http.
 			return server.handleGetCoupon(writer, request)
 		case http.MethodPost:
 			return server.handleCreateCoupon(writer, request)
-		case http.MethodPut:
+		case http.MethodPatch:
 			return server.handleUpdateCoupon(writer, request)
 		case http.MethodDelete:
 			return server.handleDeleteCoupon(writer, request)
@@ -129,20 +129,7 @@ func (server *APIServer) handleCreateCoupon(writer http.ResponseWriter, request 
 		return fmt.Errorf("validation failed: %w", err)
 	}
 
-	var applicableProducts []string
-	if err := json.Unmarshal(createCouponRequest.ApplicableProducts, &applicableProducts); err != nil {
-		return fmt.Errorf("invalid applicable_products JSON: %w", err)
-	}
-
-	coupon := NewCoupon(createCouponRequest.Code, createCouponRequest.DiscountType, createCouponRequest.Value,
-		createCouponRequest.MinimumOrderValue, createCouponRequest.MaxRedemptions, createCouponRequest.ExpiryDate,
-		applicableProducts, createCouponRequest.IsActive, createCouponRequest.UserSpecific)
-	
-	if err := ValidateCreateCouponRequest(coupon); err != nil {
-		return err
-	}
-
-	newCoupon, err := server.service.CreateCoupon(coupon)
+	newCoupon, err := server.service.CreateCoupon(*createCouponRequest)
 	if err != nil {
 		return fmt.Errorf("failed to create coupon: %w", err)
 	}
@@ -161,10 +148,25 @@ func (server *APIServer) handleUpdateCoupon(writer http.ResponseWriter, request 
 
 	log.Println("Path Variables", mux.Vars(request))
 
+	id, err := strconv.Atoi(mux.Vars(request)["id"])
+	if err != nil {
+		return fmt.Errorf("invalid id: %w", err)
+	}
+
+	updateCouponRequest := new(UpdateCouponRequest)
+	if err := json.NewDecoder(request.Body).Decode(updateCouponRequest); err != nil {
+		return fmt.Errorf("invalid request body: %w", err)
+	}
+
+	updatedCoupon, err := server.service.UpdateCoupon(id, *updateCouponRequest)
+	if err != nil {
+		return fmt.Errorf("failed to update coupon: %w", err)
+	}
+
 	return WriteJsonResponse(writer, http.StatusOK, Response{
 		Success: true,
 		Message: "Coupon Updated Successfully",
-		Data: nil,
+		Data: updatedCoupon,
 	})
 }
 

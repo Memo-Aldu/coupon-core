@@ -33,14 +33,14 @@ type CreateCouponRequest struct {
 }
 
 
-type UpdateCouponRequest struct {
-	DiscountType        string    `json:"discount_type"`
-	Value			    float64   `json:"value"`
-	MaxRedemptions      int       `json:"max_redemptions"`
-	ExpiryDate		    string 	  `json:"expiry_date"`
-	MinimumOrderValue   float64   `json:"minimum_order_value"`
-	ApplicableProducts  []string 	  `json:"applicable_products"`
-	IsActive 		 	bool      `json:"is_active"`	
+type UpdateCouponRequest struct {		// Optional fields for updating a coupon
+	DiscountType        DiscountType    `json:"discount_type,omitempty"`
+	Value			    float64   		`json:"value,omitempty"`
+	MaxRedemptions      int       		`json:"max_redemptions,omitempty"`
+	ExpiryDate		    string 	  		`json:"expiry_date,omitempty"`
+	MinimumOrderValue   float64   		`json:"minimum_order_value,omitempty"`
+	ApplicableProducts  json.RawMessage `json:"applicable_products,omitempty"`
+	IsActive 		 	bool      		`json:"is_active,omitempty"`	
 }
 
 
@@ -53,7 +53,7 @@ type Coupon struct {
 	MaxRedemptions      int       		`json:"max_redemptions" db:"max_redemptions"`
 	RedeemedCount 	    int       		`json:"redeemed_count" db:"redeemed_count"`
 	ExpiryDate		    time.Time 		`json:"expiry_date" db:"expiry_date"`
-	ApplicableProducts  []string		    `json:"applicable_products" db:"applicable_products"`
+	ApplicableProducts  []string		`json:"applicable_products" db:"applicable_products"`
 	CreatedAt 		 	time.Time 		`json:"created_at" db:"created_at"`
 	UpdatedAt 		 	time.Time 		`json:"updated_at" db:"updated_at"`
 	IsActive 		 	bool      		`json:"is_active" db:"is_active"`

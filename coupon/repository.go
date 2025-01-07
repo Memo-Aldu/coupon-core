@@ -145,7 +145,25 @@ func (db *PostgresRepository) CreateCoupon(coupon *Coupon) (*Coupon, error) {
 
 
 func (db *PostgresRepository) UpdateCoupon(coupon *Coupon) (*Coupon, error) {
-	return nil, nil
+	query := `UPDATE coupons SET discount_type = $1, value = $2, 
+	max_redemptions = $3, expiry_date = $4, minimum_order_value = $5, 
+	applicable_products = $6::jsonb, is_active = $7, updated_at = $8 WHERE id = $9 RETURNING id`
+
+	applicableProductsJSON, err := json.Marshal(coupon.ApplicableProducts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal applicable_products: %w", err)
+	}
+
+	var id int
+	err = db.db.QueryRow(query, coupon.DiscountType, coupon.Value, coupon.MaxRedemptions, coupon.ExpiryDate, 
+		coupon.MinimumOrderValue, applicableProductsJSON, coupon.IsActive, coupon.UpdatedAt, coupon.ID).Scan(&id)
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to update coupon with id: %d: %w", coupon.ID, err)
+	}
+
+	coupon.ID = id
+	return coupon, nil
 }
 
 
