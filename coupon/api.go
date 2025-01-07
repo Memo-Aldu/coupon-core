@@ -173,7 +173,16 @@ func (server *APIServer) handleUpdateCoupon(writer http.ResponseWriter, request 
 
 func (server *APIServer) handleDeleteCoupon(writer http.ResponseWriter, request *http.Request) error {
 	log.Println("Delete Coupon Handler")
-	log.Println("Path Variables", mux.Vars(request))
+	id, err := strconv.Atoi(mux.Vars(request)["id"])
+	if err != nil {
+		return fmt.Errorf("invalid id: %w", err)
+	}
+
+	err = server.service.DeleteCoupon(id)
+	if err != nil {
+		return fmt.Errorf("failed to delete coupon: %w", err)
+	}
+	
 	return WriteJsonResponse(writer, http.StatusOK, Response{
 		Success: true,
 		Message: "Coupon Deleted Successfully",

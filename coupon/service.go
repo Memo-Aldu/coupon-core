@@ -82,3 +82,11 @@ func (s *CouponService) UpdateCoupon(id int, request UpdateCouponRequest) (*Coup
 	return s.repository.UpdateCoupon(coupon)
 }
 
+func (s *CouponService) DeleteCoupon(id int) error {
+	_, err := s.repository.GetCouponById(id)
+	if err != nil {
+		return fmt.Errorf("failed to get coupon: %w", err)
+	}
+	return s.repository.DeleteCoupon(id)
+}
+

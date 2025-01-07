@@ -168,6 +168,11 @@ func (db *PostgresRepository) UpdateCoupon(coupon *Coupon) (*Coupon, error) {
 
 
 func (db *PostgresRepository) DeleteCoupon(id int) error {
+	query := `DELETE FROM coupons WHERE id = $1`
+	_, err := db.db.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete coupon with id: %d: %w", id, err)
+	}
 	return nil
 }
 
